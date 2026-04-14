@@ -1,13 +1,15 @@
-# yt-dlp stahovač
+# yt-dlp Stahovač
 
-Native macOS application for downloading **audio and video** from 1500+ websites with intelligent content auto-detection, metadata embedding, quality selection, and playlist management.
+**Native macOS desktop application** for downloading **audio and video** from 1500+ websites with intelligent auto-detection, quality selection, and automated watchlist syncing.
 
-**Works with:** Czech Radio (Český rozhlas) • YouTube • Facebook • TikTok • Instagram • Vimeo • Bluesky • Twitch • Podcasts • SoundCloud • and many more...
+Perfect for Czech Radio (Český rozhlas) podcasts, YouTube videos, and mixed-content libraries.
+
+**Works with:** YouTube • Český rozhlas • Facebook • TikTok • Instagram • Vimeo • Bluesky • Twitch • Spotify • SoundCloud • Podcasts • and 1500+ more...
 
 ![macOS](https://img.shields.io/badge/macOS-10.13+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Bash](https://img.shields.io/badge/Shell_Script-121011?logo=gnu-bash)
-![Version](https://img.shields.io/badge/v3.0-video--support-brightgreen)
+![Bash](https://img.shields.io/badge/Bash_AppleScript-121011?logo=gnu-bash)
+![Version](https://img.shields.io/badge/v3.0-macOS--only-brightgreen)
 
 ## Features
 
@@ -43,8 +45,8 @@ Native macOS application for downloading **audio and video** from 1500+ websites
 ## Installation
 
 ### Requirements
-- macOS 10.13+
-- Homebrew (for yt-dlp and ffmpeg)
+- **macOS 10.13 or later**
+- **Homebrew** (for yt-dlp and ffmpeg installation)
 
 ### Quick Install
 
@@ -358,6 +360,20 @@ bash -n install-ytdlp-stahovac.sh
 # Install to ~/Applications instead of /Applications
 # (installer checks write permissions automatically)
 ```
+
+## About This Project
+
+This is a **native macOS application** - not a web app or service. It runs directly on your Mac with full control over file locations, quality, and automation.
+
+**Why macOS only?** 
+- Full access to system features (notifications, file system, AppleScript)
+- No server/hosting dependencies or limitations
+- Works offline once downloaded
+- Perfect for personal use or small team (5-10 people)
+
+Web versions were explored but require server-side command execution which most shared hosting providers disable for security reasons.
+
+---
 
 ## Changelog
 
