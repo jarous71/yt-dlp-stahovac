@@ -9,22 +9,28 @@ Native macOS application for downloading audio from websites (primarily Czech Ra
 ## Features
 
 ### Core
-- 🎙️ **Download audio** from websites (yt-dlp compatible)
+- 🎙️ **Audio & Video downloads** – automatically detects content type and downloads accordingly
 - 📁 **Smart folder naming** – prefers series name, then playlist title, then uploader
-- 🏷️ **Automatic metadata** – embeds title, artist, cover art into MP3 files
-- 🎚️ **Quality selection** – choose between 128/192/320 kbps MP3
+- 🏷️ **Automatic metadata** – embeds title, artist, cover art (audio) or metadata (video)
+- 🎚️ **Quality selection** 
+  - Audio: 128/192/320 kbps MP3
+  - Video: 1080p / 720p / 480p / 360p MP4
 - 📋 **Multiple input methods**
   - Double-click → URL dialog
   - Drag-drop → .txt file with URLs (one per line)
   - System Service → right-click selected URL in any app
 
 ### Smart Features
+- 🤖 **Auto-detection** – recognizes audio podcasts vs. video content by domain
+  - Audio sources: Český rozhlas, podcasts, SoundCloud, Spotify...
+  - Video sources: YouTube, Facebook, TikTok, X/Twitter, Vimeo, Bluesky, Twitch...
 - 💾 **Download archive** – never re-downloads same episode (`.archive.txt` tracks IDs)
 - 📜 **URL history** – stores last 10 URLs, quick-select from dialog
 - ⚙️ **Auto-update** – yt-dlp updates silently before each download
 - 🔔 **macOS notifications** – alerts on completion or error
 - 📦 **Batch downloads** – "Ze souboru…" button loads URLs from text file
-- 🎬 **Watchlist** – auto-sync favorite shows every Monday at 8:00 AM
+- 🎬 **Watchlist** – auto-sync favorite shows & videos every Monday at 8:00 AM
+- 🎬 **Mixed content** – same watchlist handles both audio and video with auto-detection
 
 ### Optional
 - 🍎 **System Service** – right-click → "Stáhnout přes yt-dlp"
@@ -63,18 +69,39 @@ Native macOS application for downloading audio from websites (primarily Czech Ra
 ### Basic Download (Double-click)
 1. Open the app
 2. Enter URL (clipboard is pre-filled if valid)
-3. Select quality (192 kbps recommended)
-4. Downloads appear in `~/Downloads/yt-dlp/<Show Name>/`
+3. App **auto-detects** content type:
+   - 🎙️ **Audio content** (Český rozhlas, podcasts) → asks for audio quality (128/192/320 kbps)
+   - 🎬 **Video content** (YouTube, Facebook, TikTok, etc.) → asks for video quality (1080p/720p/480p/360p)
+4. You can override the auto-detection if needed
+5. Downloads appear in `~/Downloads/yt-dlp/<Show Name>/`
+
+### Auto-Detection
+The app intelligently recognizes content type:
+
+| Source | Detected As | Default Quality |
+|--------|-------------|-----------------|
+| Český rozhlas (všechny stanice) | Audio | 192 kbps |
+| Podcast services | Audio | 192 kbps |
+| YouTube, Vimeo | Video | 720p |
+| Facebook, X/Twitter, TikTok | Video | 720p |
+| Instagram, Twitch | Video | 720p |
+| Bluesky (video posts) | Video | 720p |
+| Unknown sources | Auto-ask user | — |
+
+You can always change the detected type in the dialog before downloading.
 
 ### Batch Download (Drag-Drop)
 1. Create `.txt` file with URLs:
    ```
-   # My shows
+   # My shows - audio podcasts
    https://www.irozhlas.cz/prehled-zprav-irozhlas-podcast
    https://www.mujrozhlas.cz/osobnost-dne
-   https://www.radiozurnal.cz/zaznamy
+   
+   # My videos
+   https://www.youtube.com/watch?v=example
+   https://www.facebook.com/page/videos
    ```
-2. Drag the file onto app icon → select quality → done
+2. Drag the file onto app icon → for each URL, select type (auto-detected) → select quality → done
 
 ### System Service (Right-click)
 1. Select a URL in Safari, Mail, or any app
@@ -84,16 +111,26 @@ Native macOS application for downloading audio from websites (primarily Czech Ra
 
 ### Watchlist (Weekly Auto-sync)
 1. Open `~/.ytdlp_watchlist` in text editor
-2. Add show URLs (one per line):
+2. Add show URLs and videos (one per line):
    ```
-   # Favorite shows
+   # Audio podcasts (auto-detected as audio)
+   https://www.irozhlas.cz/prehled-zprav-irozhlas-podcast
    192:https://www.mujrozhlas.cz/zaznamy-emisni-archiv
-   320:https://www.radiozurnal.cz/zaznamy
-   https://www.irozhlas.cz/news-podcast
+   audio:320:https://www.radiozurnal.cz/zaznamy
+   
+   # Videos (auto-detected as video)
+   https://www.youtube.com/user/example/videos
+   video:720:https://www.facebook.com/page/videos
+   video:1080:https://www.youtube.com/@channel
    ```
-   (Optional quality prefix: `bitrate:url`)
-3. Every Monday at 8:00 AM, new episodes download automatically
-4. View log: `~/Downloads/yt-dlp-watchlist.log`
+3. Format options:
+   - `https://example.com` – auto-detect type, use default quality
+   - `audio:192:https://...` – force audio, 192 kbps
+   - `audio:320:https://...` – force audio, 320 kbps
+   - `video:480:https://...` – force video, 480p
+   - `video:1080:https://...` – force video, 1080p
+4. Every Monday at 8:00 AM, new episodes download automatically
+5. View log: `~/Downloads/yt-dlp-watchlist.log`
 
 ### SwiftBar Integration
 If using [SwiftBar](https://swiftbar.app/) or [xbar](https://xbarapp.com/):
@@ -190,13 +227,33 @@ launchctl unload ~/Library/LaunchAgents/cz.tomecek.ytdlp-watchlist.plist
 
 ## Supported Sites
 
-Works with any site supported by [yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/README.md#supported-sites), including:
-- Český rozhlas (ČRo) – all stations
+Works with any site supported by [yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/README.md#supported-sites) (1500+ sources).
+
+### Auto-Detected as Audio
+- Český rozhlas – all stations (ČRo1, ČRo2, ČRo3, Mujrozhlas, ...)
+- Radiožurnál
 - Spotify podcasts
-- YouTube
 - SoundCloud
+- Apple Podcasts
+- Anchor
+- And similar podcast/radio platforms
+
+### Auto-Detected as Video
+- **YouTube** – videos, playlists, channels
+- **Facebook** – videos, pages, groups
+- **X/Twitter** – video posts
+- **TikTok** – videos
+- **Instagram** – reels, stories, videos
+- **Vimeo** – videos, channels
+- **Bluesky** – video posts
+- **Twitch** – streams, VODs
+- **Reddit** – videos, clips
+- And 1500+ other sites supported by yt-dlp
+
+### Others
 - Bandcamp
-- And 1000+ others
+- PornHub (age check bypassed automatically)
+- And many more...
 
 To check if a site works: `yt-dlp --list-extractors | grep site-name`
 
@@ -237,7 +294,16 @@ bash -n install-ytdlp-stahovac.sh
 
 ## Changelog
 
-### v2.0 (Latest)
+### v3.0 (Latest)
+- ✅ **Audio & Video support** – auto-detects content type by source domain
+- ✅ **Smart quality dialogs** – different options for audio (kbps) vs. video (pixel height)
+- ✅ **Video format support** – downloads as MP4 with metadata
+- ✅ **Mixed watchlist** – same watchlist handles audio and video with auto-detection
+- ✅ **Video format specifiers** – `video:720:url` syntax for explicit control
+- ✅ **Improved auto-detection** – recognizes 15+ video platforms
+- ✅ **Type override** – always ask user to confirm auto-detected type
+
+### v2.0
 - ✅ Download archive (never re-downloads)
 - ✅ URL history with quick-select
 - ✅ "Ze souboru…" button for batch downloads
@@ -298,6 +364,29 @@ rm ~/Library/Application\ Support/SwiftBar/Plugins/yt-dlp.1h.sh
 
 **Q: Can I customize the output folder?**  
 A: Currently hardcoded to `~/Downloads/yt-dlp/`. To change: edit the `OUTBASE` variable in `worker.sh` within the installer script.
+
+**Q: How does auto-detection work? Can I disable it?**  
+A: App checks the URL domain against known patterns:
+- If matches audio source (rozhlas, podcast, spotify, soundcloud) → assumes audio
+- If matches video source (youtube, facebook, x.com, tiktok, vimeo, bluesky, twitch) → assumes video
+- For unknown sources → asks user directly
+
+You can always override the detected type in the dialog before downloading. There's no way to disable this feature currently, but you can set explicit type in watchlist: `audio:192:url` or `video:720:url`.
+
+**Q: What format for videos? Can I change it?**  
+A: Videos download as MP4 (best format for compatibility). The `--merge-output-format mp4` ensures video + audio are merged properly. To use different format, edit `--merge-output-format` in the install script.
+
+**Q: Can I mix audio and video in the same watchlist?**  
+A: Yes! The watchlist auto-detects each URL separately. You can have:
+```
+https://www.irozhlas.cz/podcast         # auto = audio
+https://www.youtube.com/watch?v=...     # auto = video
+audio:320:https://example.com           # force audio
+video:1080:https://example.com          # force video
+```
+
+**Q: Does video download preserve metadata like audio?**  
+A: Yes, `--embed-metadata` is included for both. Video files get title, artist (uploader), date, description, etc. embedded. Thumbnails are embedded as cover art.
 
 ---
 

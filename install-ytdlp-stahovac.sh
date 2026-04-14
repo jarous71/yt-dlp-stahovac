@@ -218,8 +218,50 @@ end run
 EOF
 }
 
-# ---- dialog: výběr kvality ------------------------------------------
-get_quality() {
+# ---- detekce typu zdroje (audio vs. video) --------------------------
+detect_source_type() {
+  local url="$1"
+  # Audio sources (ČRo a podobné)
+  if echo "$url" | /usr/bin/grep -Eiq "(rozhlas|radi[o]|podcast|spotify|soundcloud|anchor)"; then
+    echo "audio"
+    return
+  fi
+  # Video sources
+  if echo "$url" | /usr/bin/grep -Eiq "(youtube|youtu\.be|facebook|fb\.com|x\.com|twitter|tiktok|instagram|vimeo|bluesky|twitch|rumble)"; then
+    echo "video"
+    return
+  fi
+  # Default pro neznámé
+  echo "unknown"
+}
+
+# ---- dialog: potvrzení typu (audio / video) -------------------------
+get_media_type() {
+  local url="$1"
+  local detected="$2"
+
+  local prompt_text="Typ obsahu:"
+  case "$detected" in
+    audio)  prompt_text="Detekován audio podcast. Chceš audio nebo video?" ;;
+    video)  prompt_text="Detekován video obsah. Chceš video nebo audio?" ;;
+    *)      prompt_text="Jaký typ obsahu chceš stáhnout?" ;;
+  esac
+
+  local default_btn="$detected"
+  [ "$detected" = "unknown" ] && default_btn="video"
+
+  /usr/bin/osascript <<EOF
+set result to button returned of (display dialog "$prompt_text" ¬
+  buttons {"Audio (MP3)", "Video (MP4)"} ¬
+  default button ("$default_btn" = "video" and 2 or 1) ¬
+  with title "yt-dlp stahovač")
+if result = "Audio (MP3)" then return "audio"
+return "video"
+EOF
+}
+
+# ---- dialog: výběr kvality – AUDIO ----------------------------------
+get_audio_quality() {
   /usr/bin/osascript <<'EOF'
 set opts to {"192 kbps (doporučeno)", "128 kbps", "320 kbps"}
 set chosen to choose from list opts ¬
@@ -234,25 +276,68 @@ return "192"
 EOF
 }
 
+# ---- dialog: výběr kvality – VIDEO ---------------------------------
+get_video_quality() {
+  /usr/bin/osascript <<'EOF'
+set opts to {"1080p (best)", "720p (doporučeno)", "480p", "360p (nejmenší)"}
+set chosen to choose from list opts ¬
+  with title "Kvalita videa" ¬
+  with prompt "Vyber rozlišení videa:" ¬
+  default items {"720p (doporučeno)"}
+if chosen is false then return ""
+set q to item 1 of chosen
+if q starts with "1080" then return "1080"
+if q starts with "720" then return "720"
+if q starts with "480" then return "480"
+return "360"
+EOF
+}
+
 # ---- spuštění yt-dlp ve viditelném Terminálu ------------------------
 run_download() {
-  local url="$1" quality="$2"
+  local url="$1" media_type="$2" quality="$3"
   mkdir -p "$OUTBASE"
 
-  # Šablona: series má přednost (ČRo pořady), pak playlist_title, pak uploader, pak "Audio"
-  # %(playlist_index,autonumber)02d = číslo epizody; pro single URL autonumber = 01
-  local template='%(series,playlist_title,uploader|Audio)s/%(playlist_index,autonumber)02d - %(title)s.%(ext)s'
+  # Šablona: series má přednost (ČRo pořady), pak playlist_title, pak uploader
+  local template='%(series,playlist_title,uploader|Obsah)s/%(playlist_index,autonumber)02d - %(title)s.%(ext)s'
 
   local tmp; tmp=$(/usr/bin/mktemp /tmp/ytdlp_run_XXXXXX.command)
+
+  # Vyber odpovídající yt-dlp příkaz dle typu
+  local ytdlp_cmd=""
+  local quality_desc=""
+
+  if [ "$media_type" = "audio" ]; then
+    ytdlp_cmd="yt-dlp \\
+  -f bestaudio \\
+  --extract-audio --audio-format mp3 --audio-quality ${quality}K \\
+  --embed-metadata --embed-thumbnail --add-metadata \\
+  --no-mtime --no-overwrites \\
+  --download-archive \"\${ARCHIVE}\" \\
+  -o \"\${template}\" \\\\"
+    quality_desc="${quality} kbps MP3"
+  else
+    # Video: vyber nejlepší video do zadané výšky + audio a slučuj
+    local format_spec="bv[height<=${quality}]+ba/b[height<=${quality}]"
+    ytdlp_cmd="yt-dlp \\
+  -f \"$format_spec\" \\
+  --merge-output-format mp4 \\
+  --embed-metadata \\
+  --no-mtime --no-overwrites \\
+  --download-archive \"\${ARCHIVE}\" \\
+  -o \"\${template}\" \\\\"
+    quality_desc="${quality}p (best MP4)"
+  fi
+
   cat > "$tmp" <<EOF
 #!/bin/bash
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
 cd "${OUTBASE}" || exit 1
 clear
 echo "========================================================="
-echo " yt-dlp stahovač"
+echo " yt-dlp stahovač ($([ "$media_type" = "audio" ] && echo "AUDIO" || echo "VIDEO"))"
 echo " URL:     ${url}"
-echo " Kvalita: ${quality} kbps MP3"
+echo " Kvalita: ${quality_desc}"
 echo " Cíl:     ${OUTBASE}/"
 echo "========================================================="
 echo
@@ -261,13 +346,7 @@ echo "[aktualizuji yt-dlp...]"
 yt-dlp -U --quiet 2>&1 | grep -v "^$" || true
 echo
 # --- stahování ---
-yt-dlp \\
-  -f bestaudio \\
-  --extract-audio --audio-format mp3 --audio-quality ${quality}K \\
-  --embed-metadata --embed-thumbnail --add-metadata \\
-  --no-mtime --no-overwrites \\
-  --download-archive "${ARCHIVE}" \\
-  -o "${template}" \\
+${ytdlp_cmd}
   "${url}" 2>&1 | tee "${LOGFILE}"
 RC=\${PIPESTATUS[0]}
 echo
@@ -324,13 +403,44 @@ fi
 
 [ ${#URLS[@]} -eq 0 ] && { dlg_error "Nenalezeno žádné URL."; exit 1; }
 
-QUALITY=$(get_quality)
-[ -z "$QUALITY" ] && exit 0
+# Pokud je víc URL, zeptej se na typ JEDENKRÁT pro všechny (pokud jsou stejného typu)
+# Jinak zeptej se pro každou URL zvlášť
+MEDIA_TYPE=""
+QUALITY=""
 
-for u in "${URLS[@]}"; do
-  save_history "$u"
-  run_download "$u" "$QUALITY"
-done
+if [ ${#URLS[@]} -eq 1 ]; then
+  # Jedna URL: detekuj a zeptej se
+  DETECTED=$( detect_source_type "${URLS[0]}" )
+  MEDIA_TYPE=$( get_media_type "${URLS[0]}" "$DETECTED" )
+  [ -z "$MEDIA_TYPE" ] && exit 0
+
+  if [ "$MEDIA_TYPE" = "audio" ]; then
+    QUALITY=$( get_audio_quality )
+  else
+    QUALITY=$( get_video_quality )
+  fi
+  [ -z "$QUALITY" ] && exit 0
+
+  save_history "${URLS[0]}"
+  run_download "${URLS[0]}" "$MEDIA_TYPE" "$QUALITY"
+else
+  # Víc URL: zeptej se pro každou zvlášť
+  for u in "${URLS[@]}"; do
+    DETECTED=$( detect_source_type "$u" )
+    MEDIA_TYPE=$( get_media_type "$u" "$DETECTED" )
+    [ -z "$MEDIA_TYPE" ] && continue
+
+    if [ "$MEDIA_TYPE" = "audio" ]; then
+      QUALITY=$( get_audio_quality )
+    else
+      QUALITY=$( get_video_quality )
+    fi
+    [ -z "$QUALITY" ] && continue
+
+    save_history "$u"
+    run_download "$u" "$MEDIA_TYPE" "$QUALITY"
+  done
+fi
 WORKER
 chmod +x "$WORKER"
 
@@ -339,8 +449,10 @@ cat > "$WATCHLIST_SYNC" <<'SYNC'
 #!/bin/bash
 # ---- yt-dlp stahovač: Watchlist synchronizace -----------------------
 # Volán týdenně přes LaunchAgent.
-# Číte ~/.ytdlp_watchlist (jedna URL na řádek, # = komentář,
-# volitelný prefix kvality: "192:https://..." nebo jen "https://...")
+# Číte ~/.ytdlp_watchlist, formát:
+#   https://example.com/show          (auto-detect typ, default kvalita)
+#   audio:192:https://example.com     (audio, 192 kbps)
+#   video:720:https://example.com     (video, 720p)
 set -u
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
@@ -348,6 +460,18 @@ WATCHLIST="$HOME/.ytdlp_watchlist"
 OUTBASE="$HOME/Downloads/yt-dlp"
 ARCHIVE="$HOME/Downloads/yt-dlp/.archive.txt"
 LOGFILE="$HOME/Downloads/yt-dlp-watchlist.log"
+
+# --- detekce typu zdroje ---
+detect_source_type() {
+  local url="$1"
+  if echo "$url" | grep -Eiq "(rozhlas|radi[o]|podcast|spotify|soundcloud)"; then
+    echo "audio"
+  elif echo "$url" | grep -Eiq "(youtube|youtu\.be|facebook|fb\.com|x\.com|twitter|tiktok|instagram|vimeo|bluesky|twitch)"; then
+    echo "video"
+  else
+    echo "audio"  # default
+  fi
+}
 
 [ -f "$WATCHLIST" ] || exit 0
 command -v yt-dlp >/dev/null 2>&1 || exit 1
@@ -362,23 +486,59 @@ while IFS= read -r line || [ -n "$line" ]; do
   line="$(echo "$line" | tr -d '\r' | awk '{$1=$1;print}')"
   case "$line" in ""|\#*) continue ;; esac
 
-  # Volitelný prefix kvality: "320:https://..."
-  quality="192"
+  # Parse: [type:][quality:]url
+  media_type=""
+  quality=""
   url="$line"
+
+  # Pokud začíná "audio:" nebo "video:"
+  if [[ "$line" =~ ^(audio|video):(.+)$ ]]; then
+    media_type="${BASH_REMATCH[1]}"
+    line="${BASH_REMATCH[2]}"
+  fi
+
+  # Pokud zbývá "number:" (kvalita)
   if [[ "$line" =~ ^([0-9]+):(.+)$ ]]; then
     quality="${BASH_REMATCH[1]}"
     url="${BASH_REMATCH[2]}"
+  else
+    url="$line"
   fi
 
-  echo "[$(date +%H:%M)] Zpracovávám: $url" | tee -a "$LOGFILE"
-  yt-dlp \
-    -f bestaudio \
-    --extract-audio --audio-format mp3 --audio-quality "${quality}K" \
-    --embed-metadata --embed-thumbnail --add-metadata \
-    --no-mtime --no-overwrites \
-    --download-archive "$ARCHIVE" \
-    -o '%(series,playlist_title,uploader|Watchlist)s/%(playlist_index,autonumber)02d - %(title)s.%(ext)s' \
-    "$url" >> "$LOGFILE" 2>&1 || true
+  # Pokud není typ určen, detekuj
+  if [ -z "$media_type" ]; then
+    media_type=$( detect_source_type "$url" )
+  fi
+
+  # Výchozí kvalita podle typu
+  if [ -z "$quality" ]; then
+    [ "$media_type" = "audio" ] && quality="192" || quality="720"
+  fi
+
+  echo "[$(date +%H:%M)] $media_type | $quality | $url" | tee -a "$LOGFILE"
+
+  # --- yt-dlp příkaz podle typu ---
+  if [ "$media_type" = "audio" ]; then
+    yt-dlp \
+      -f bestaudio \
+      --extract-audio --audio-format mp3 --audio-quality "${quality}K" \
+      --embed-metadata --embed-thumbnail --add-metadata \
+      --no-mtime --no-overwrites \
+      --download-archive "$ARCHIVE" \
+      -o '%(series,playlist_title,uploader|Watchlist)s/%(playlist_index,autonumber)02d - %(title)s.%(ext)s' \
+      "$url" >> "$LOGFILE" 2>&1 || true
+  else
+    # Video: formát podle zadané výšky
+    local format_spec="bv[height<=${quality}]+ba/b[height<=${quality}]"
+    yt-dlp \
+      -f "$format_spec" \
+      --merge-output-format mp4 \
+      --embed-metadata \
+      --no-mtime --no-overwrites \
+      --download-archive "$ARCHIVE" \
+      -o '%(series,playlist_title,uploader|Watchlist)s/%(playlist_index,autonumber)02d - %(title)s.%(ext)s' \
+      "$url" >> "$LOGFILE" 2>&1 || true
+  fi
 
 done < "$WATCHLIST"
 
@@ -391,12 +551,17 @@ chmod +x "$WATCHLIST_SYNC"
 if [ ! -f "$WATCHLIST_FILE" ]; then
   cat > "$WATCHLIST_FILE" <<'WL'
 # yt-dlp Watchlist – sledované pořady
-# Formát: [kvalita:]URL
-# Příklad:
-#   192:https://www.mujrozhlas.cz/nazev-poradu
-#   320:https://www.irozhlas.cz/nazev-poradu
+# Formát: [[typ:]kvalita:]URL
+# typ: audio (default pro rozhlas), video (default pro YouTube/FB/TikTok/...)
+# kvalita: pro audio = kbps (128/192/320), pro video = výška v px (360/480/720/1080)
 #
-# Přidej sem URL svých oblíbených pořadů.
+# Příklady:
+#   https://www.irozhlas.cz/prehled-zprav-irozhlas-podcast
+#   audio:320:https://www.mujrozhlas.cz/prehled-zprav
+#   video:720:https://www.youtube.com/user/example
+#   video:1080:https://www.facebook.com/page/videos
+#
+# Přidej sem URL svých oblíbených pořadů a videí.
 # Každé pondělí v 8:00 se automaticky stáhnou nové epizody.
 WL
   echo "==> Watchlist vytvořen: $WATCHLIST_FILE"
