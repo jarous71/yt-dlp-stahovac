@@ -12,11 +12,11 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-// Základní konfigurace
-define('APP_ROOT', __DIR__);
-define('DOWNLOADS_DIR', APP_ROOT . '/downloads');
-define('TEMP_DIR', APP_ROOT . '/temp');
-define('DB_FILE', APP_ROOT . '/data/history.db');
+// Základní konfigurace - definuj jenom pokud ještě nejsou
+if (!defined('APP_ROOT')) define('APP_ROOT', __DIR__);
+if (!defined('DOWNLOADS_DIR')) define('DOWNLOADS_DIR', APP_ROOT . '/downloads');
+if (!defined('TEMP_DIR')) define('TEMP_DIR', APP_ROOT . '/temp');
+if (!defined('DB_FILE')) define('DB_FILE', APP_ROOT . '/data/history.db');
 
 // Vytvoření adresářů - bez zastavení v případě chyby
 $dirs_to_create = [DOWNLOADS_DIR, TEMP_DIR, APP_ROOT . '/data'];
