@@ -307,67 +307,64 @@ run_download() {
 
   local tmp; tmp=$(/usr/bin/mktemp /tmp/ytdlp_run_XXXXXX.command)
 
-  # Vyber odpovídající yt-dlp příkaz dle typu
-  local ytdlp_cmd=""
-  local quality_desc=""
-
-  if [ "$media_type" = "audio" ]; then
-    ytdlp_cmd="yt-dlp \\
-  -f bestaudio \\
-  --extract-audio --audio-format mp3 --audio-quality ${quality}K \\
-  --embed-metadata --embed-thumbnail --add-metadata \\
-  --no-mtime --no-overwrites \\
-  --download-archive \"\${ARCHIVE}\" \\
-  -o \"\${template}\" \\\\"
-    quality_desc="${quality} kbps MP3"
-  else
-    # Video: vyber nejlepší video do zadané výšky + audio a slučuj
-    local format_spec="bv[height<=${quality}]+ba/b[height<=${quality}]"
-    ytdlp_cmd="yt-dlp \\
-  -f \"$format_spec\" \\
-  --merge-output-format mp4 \\
-  --embed-metadata \\
-  --no-mtime --no-overwrites \\
-  --download-archive \"\${ARCHIVE}\" \\
-  -o \"\${template}\" \\\\"
-    quality_desc="${quality}p (best MP4)"
-  fi
-
-  cat > "$tmp" <<EOF
+  cat > "$tmp" <<'EOF'
 #!/bin/bash
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
-cd "${OUTBASE}" || exit 1
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+cd "$OUTBASE" || exit 1
 clear
 echo "========================================================="
-echo " yt-dlp stahovač ($([ "$media_type" = "audio" ] && echo "AUDIO" || echo "VIDEO"))"
-echo " URL:     ${url}"
-echo " Kvalita: ${quality_desc}"
-echo " Cíl:     ${OUTBASE}/"
+if [ "$MEDIA_TYPE" = "audio" ]; then
+  echo " yt-dlp stahovač (AUDIO)"
+  echo " Kvalita: $QUALITY kbps MP3"
+else
+  echo " yt-dlp stahovač (VIDEO)"
+  echo " Kvalita: $QUALITY p (best MP4)"
+fi
+echo " URL:     $URL"
+echo " Cíl:     $OUTBASE/"
 echo "========================================================="
 echo
-# --- auto-update yt-dlp (tiše na pozadí) ---
 echo "[aktualizuji yt-dlp...]"
 yt-dlp -U --quiet 2>&1 | grep -v "^$" || true
 echo
-# --- stahování ---
-${ytdlp_cmd}
-  "${url}" 2>&1 | tee "${LOGFILE}"
-RC=\${PIPESTATUS[0]}
+echo "[stahování]"
 echo
-if [ "\$RC" = "0" ]; then
+
+if [ "$MEDIA_TYPE" = "audio" ]; then
+  yt-dlp -f bestaudio --extract-audio --audio-format mp3 --audio-quality "${QUALITY}K" --embed-metadata --embed-thumbnail --add-metadata --no-mtime --no-overwrites --download-archive "$ARCHIVE" -o "$TEMPLATE" "$URL" 2>&1 | tee "$LOGFILE"
+else
+  yt-dlp -f "bv[height<=${QUALITY}]+ba/b[height<=${QUALITY}]" --merge-output-format mp4 --embed-metadata --no-mtime --no-overwrites --download-archive "$ARCHIVE" -o "$TEMPLATE" "$URL" 2>&1 | tee "$LOGFILE"
+fi
+
+RC=${PIPESTATUS[0]}
+echo
+if [ "$RC" = "0" ]; then
   echo "=== HOTOVO ==="
   /usr/bin/osascript -e 'display notification "Stahování dokončeno ✓" with title "yt-dlp stahovač"' >/dev/null 2>&1 || true
-  /usr/bin/open "${OUTBASE}"
+  /usr/bin/open "$OUTBASE"
 else
-  echo "=== CHYBA (kód \$RC) – viz log: ${LOGFILE} ==="
+  echo "=== CHYBA (kód $RC) – viz log: $LOGFILE ==="
   echo "--- Posledních 20 řádků logu: ---"
-  tail -20 "${LOGFILE}"
+  tail -20 "$LOGFILE"
   /usr/bin/osascript -e 'display notification "Stahování selhalo – viz Terminál" with title "yt-dlp stahovač"' >/dev/null 2>&1 || true
 fi
 echo
 echo "Toto okno Terminálu můžeš zavřít  (Cmd + W)."
-rm -f "${tmp}"
+rm -f "$0"
 EOF
+
+  # Předaj proměnné do .command souboru přes environment
+  {
+    echo "export URL='$url'"
+    echo "export MEDIA_TYPE='$media_type'"
+    echo "export QUALITY='$quality'"
+    echo "export ARCHIVE='$ARCHIVE'"
+    echo "export LOGFILE='$LOGFILE'"
+    echo "export OUTBASE='$OUTBASE'"
+    echo "export TEMPLATE='$template'"
+    cat "$tmp"
+  } > "${tmp}.tmp" && mv "${tmp}.tmp" "$tmp"
+
   chmod +x "$tmp"
   /usr/bin/open "$tmp"
 }
