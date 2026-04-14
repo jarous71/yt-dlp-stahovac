@@ -18,32 +18,40 @@ define('DOWNLOADS_DIR', APP_ROOT . '/downloads');
 define('TEMP_DIR', APP_ROOT . '/temp');
 define('DB_FILE', APP_ROOT . '/data/history.db');
 
-// Vytvoření adresářů, pokud neexistují
-foreach ([DOWNLOADS_DIR, TEMP_DIR, APP_ROOT . '/data'] as $dir) {
+// Vytvoření adresářů - bez zastavení v případě chyby
+$dirs_to_create = [DOWNLOADS_DIR, TEMP_DIR, APP_ROOT . '/data'];
+foreach ($dirs_to_create as $dir) {
     if (!is_dir($dir)) {
-        mkdir($dir, 0755, true);
+        @mkdir($dir, 0755, true); // @ potlačuje varování
     }
 }
 
-// Inicializace SQLite databáze
+// Inicializace SQLite databáze - bezpečně
 function initDatabase() {
-    if (!file_exists(DB_FILE)) {
-        $db = new SQLite3(DB_FILE);
-        $db->exec('CREATE TABLE downloads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            content_type TEXT,
-            quality TEXT,
-            status TEXT DEFAULT "pending",
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            completed_at DATETIME
-        )');
-        $db->close();
+    try {
+        if (!file_exists(DB_FILE)) {
+            $db = new SQLite3(DB_FILE);
+            $db->exec('CREATE TABLE downloads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                content_type TEXT,
+                quality TEXT,
+                status TEXT DEFAULT "pending",
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                completed_at DATETIME
+            )');
+            $db->close();
+        }
+        return true;
+    } catch (Exception $e) {
+        error_log('DB Init Error: ' . $e->getMessage());
+        return false;
     }
 }
 
-initDatabase();
+// Volaj initDatabase ale ignoruj chyby - aplikace bude fungovat i bez DB
+$db_ok = initDatabase();
 
 // Detekce typu obsahu podle domény
 function detectContentType($url) {
@@ -256,10 +264,16 @@ function checkYtDlp() {
             </div>
 
             <div class="card-body p-4">
+                <?php if (!$db_ok): ?>
+                    <div class="alert alert-warning" role="alert">
+                        <strong>⚠️ Upozornění:</strong> Databáze se nepodařilo inicializovat. Aplikace bude fungovat, ale historia stahování se neuloží. Zkontroluj práva na serveru.
+                    </div>
+                <?php endif; ?>
+
                 <?php if (!checkYtDlp()): ?>
                     <div class="alert alert-danger" role="alert">
                         <strong>⚠️ Chyba:</strong> yt-dlp není nainstalován nebo není dostupný v PATH.
-                        Na aerohosting.cz kontaktuj podporu pro instalaci yt-dlp.
+                        Na serveru kontaktuj podporu pro instalaci yt-dlp.
                     </div>
                 <?php endif; ?>
 

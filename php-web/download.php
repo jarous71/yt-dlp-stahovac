@@ -13,6 +13,14 @@ define('DOWNLOADS_DIR', APP_ROOT . '/downloads');
 define('TEMP_DIR', APP_ROOT . '/temp');
 define('DB_FILE', APP_ROOT . '/data/history.db');
 
+// Vytvoření adresářů - bez zastavení v případě chyby
+$dirs_to_create = [DOWNLOADS_DIR, TEMP_DIR, APP_ROOT . '/data'];
+foreach ($dirs_to_create as $dir) {
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true); // @ potlačuje varování
+    }
+}
+
 // Základní odpověď
 $response = [
     'success' => false,
