@@ -1,10 +1,13 @@
 # yt-dlp stahovač
 
-Native macOS application for downloading audio from websites (primarily Czech Radio – Český rozhlas) with automatic metadata embedding, quality selection, and intelligent playlist management.
+Native macOS application for downloading **audio and video** from 1500+ websites with intelligent content auto-detection, metadata embedding, quality selection, and playlist management.
+
+**Works with:** Czech Radio (Český rozhlas) • YouTube • Facebook • TikTok • Instagram • Vimeo • Bluesky • Twitch • Podcasts • SoundCloud • and many more...
 
 ![macOS](https://img.shields.io/badge/macOS-10.13+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Bash](https://img.shields.io/badge/Shell_Script-121011?logo=gnu-bash)
+![Version](https://img.shields.io/badge/v3.0-video--support-brightgreen)
 
 ## Features
 
@@ -68,12 +71,30 @@ Native macOS application for downloading audio from websites (primarily Czech Ra
 
 ### Basic Download (Double-click)
 1. Open the app
-2. Enter URL (clipboard is pre-filled if valid)
-3. App **auto-detects** content type:
-   - 🎙️ **Audio content** (Český rozhlas, podcasts) → asks for audio quality (128/192/320 kbps)
-   - 🎬 **Video content** (YouTube, Facebook, TikTok, etc.) → asks for video quality (1080p/720p/480p/360p)
-4. You can override the auto-detection if needed
-5. Downloads appear in `~/Downloads/yt-dlp/<Show Name>/`
+2. Enter or paste URL (clipboard is pre-filled if valid)
+3. App **auto-detects** content type and asks:
+   - 🎙️ **Audio content** (Český rozhlas, podcasts) → "Audio nebo video?" → select quality (128/192/320 kbps)
+   - 🎬 **Video content** (YouTube, Facebook, TikTok, etc.) → "Video nebo audio?" → select quality (1080p/720p/480p/360p)
+4. You can override the auto-detected type if needed
+5. Downloads appear in `~/Downloads/yt-dlp/<Show Name>/` with proper folder structure
+
+**Example – YouTube video:**
+```
+URL: https://www.youtube.com/watch?v=_q54Q-aDBwE
+App detects: VIDEO
+Dialog: "Detekován video obsah. Chceš video nebo audio?"
+Quality: 720p selected
+Result: ~/Downloads/yt-dlp/Grandpa Cooks Today/01 - Bramborová omáčka s vejci.mp4 ✅
+```
+
+**Example – ČRo podcast:**
+```
+URL: https://www.irozhlas.cz/prehled-zprav-irozhlas-podcast
+App detects: AUDIO
+Dialog: "Detekován audio podcast. Chceš audio nebo video?"
+Quality: 192 kbps selected
+Result: ~/Downloads/yt-dlp/Přehled zpráv iRozhlas/01 - Přehled zpráv.mp3 ✅
+```
 
 ### Auto-Detection
 The app intelligently recognizes content type:
@@ -225,6 +246,52 @@ Remove LaunchAgent:
 launchctl unload ~/Library/LaunchAgents/cz.tomecek.ytdlp-watchlist.plist
 ```
 
+## Real-World Examples
+
+### Example 1: Download YouTube Cooking Video
+```
+1. Click app → URL field shows clipboard content
+2. Paste: https://www.youtube.com/watch?v=_q54Q-aDBwE
+3. App displays: "Detekován video obsah. Chceš video nebo audio?"
+4. Select: "Video (MP4)"
+5. Quality dialog: 720p selected
+6. Download starts → ~/Downloads/yt-dlp/Grandpa Cooks Today/01 - Bramborová omáčka.mp4
+Result: ✅ 50MB video with metadata in 30 seconds
+```
+
+### Example 2: Download ČRo Podcast
+```
+1. Click app
+2. Paste: https://www.irozhlas.cz/prehled-zprav-irozhlas-podcast
+3. App displays: "Detekován audio podcast. Chceš audio nebo video?"
+4. Select: "Audio (MP3)" (already default)
+5. Quality dialog: 192 kbps selected
+6. Download starts → ~/Downloads/yt-dlp/Přehled zpráv iRozhlas/
+Result: ✅ All episodes as MP3s with metadata
+```
+
+### Example 3: Watchlist with Mixed Content
+Create `~/.ytdlp_watchlist`:
+```bash
+# ČRo podcasts (auto-detected as audio, 192 kbps)
+https://www.irozhlas.cz/prehled-zprav-irozhlas-podcast
+https://www.mujrozhlas.cz/osobnost-dne
+
+# YouTube channels (auto-detected as video, 720p)
+https://www.youtube.com/@CookingChannel/videos
+
+# Explicit specifications
+audio:320:https://www.radiozurnal.cz/zaznamy
+video:1080:https://www.facebook.com/channel/videos
+```
+
+Every Monday at 8:00 AM:
+- ✅ New ČRo episodes → MP3 (192 kbps)
+- ✅ New YouTube videos → MP4 (720p)
+- ✅ New Radiožurnál episodes → MP3 (320 kbps)
+- ✅ New Facebook videos → MP4 (1080p)
+All stored in `~/Downloads/yt-dlp/` with proper folder structure.
+
 ## Supported Sites
 
 Works with any site supported by [yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/README.md#supported-sites) (1500+ sources).
@@ -294,14 +361,21 @@ bash -n install-ytdlp-stahovac.sh
 
 ## Changelog
 
-### v3.0 (Latest)
-- ✅ **Audio & Video support** – auto-detects content type by source domain
-- ✅ **Smart quality dialogs** – different options for audio (kbps) vs. video (pixel height)
-- ✅ **Video format support** – downloads as MP4 with metadata
+### v3.0 (Latest) – Video Support Release
+#### New Features
+- ✅ **Audio & Video support** – automatically detects content type by source domain
+- ✅ **Smart quality dialogs** – different options for audio (128/192/320 kbps) vs. video (1080p/720p/480p/360p)
+- ✅ **Video format support** – downloads as MP4 with embedded metadata
 - ✅ **Mixed watchlist** – same watchlist handles audio and video with auto-detection
-- ✅ **Video format specifiers** – `video:720:url` syntax for explicit control
-- ✅ **Improved auto-detection** – recognizes 15+ video platforms
-- ✅ **Type override** – always ask user to confirm auto-detected type
+- ✅ **Video format specifiers** – `video:720:url` syntax for explicit control in watchlist
+- ✅ **Improved auto-detection** – recognizes 15+ video platforms (YouTube, Facebook, TikTok, Vimeo, Bluesky, Twitch, Instagram, Reddit, etc.)
+- ✅ **Type override** – always ask user to confirm auto-detected type before downloading
+
+#### Bug Fixes
+- ✅ Fixed AppleScript dialog logic for correct button detection
+- ✅ Fixed shell command escaping in .command file generation (YouTube downloads now work)
+- ✅ Proper environment variable passing to avoid backslash interpretation issues
+- ✅ Robust yt-dlp command construction for both audio and video formats
 
 ### v2.0
 - ✅ Download archive (never re-downloads)
