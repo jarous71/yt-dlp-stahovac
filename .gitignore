@@ -1,0 +1,20 @@
+# macOS specifické
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code specifické
+.vscode/
+*.code-workspace
+
+# Python (yt-dlp)
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+ENV/
+
+# Node / Tailwind (pokud v tomto projektu používáš)
+node_modules/
+.npm
