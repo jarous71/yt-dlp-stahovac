@@ -247,16 +247,20 @@ get_media_type() {
     *)      prompt_text="Jaký typ obsahu chceš stáhnout?" ;;
   esac
 
-  local default_btn="$detected"
-  [ "$detected" = "unknown" ] && default_btn="video"
+  # Urči defaultní tlačítko (1 = Audio, 2 = Video)
+  local default_btn=1
+  [ "$detected" = "video" ] && default_btn=2
 
   /usr/bin/osascript <<EOF
 set result to button returned of (display dialog "$prompt_text" ¬
   buttons {"Audio (MP3)", "Video (MP4)"} ¬
-  default button ("$default_btn" = "video" and 2 or 1) ¬
+  default button $default_btn ¬
   with title "yt-dlp stahovač")
-if result = "Audio (MP3)" then return "audio"
-return "video"
+if result = "Audio (MP3)" then
+  return "audio"
+else
+  return "video"
+end if
 EOF
 }
 
